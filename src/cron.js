@@ -4,8 +4,12 @@ const { flush } = require('./queue');
 function setupCron(client) {
   cron.schedule(
     '*/30 * * * * *',
-    () => {
-      flush(client);
+    async () => {
+      try {
+        await flush(client);
+      } catch (err) {
+        console.error('[cron] error while flushing queue', err);
+      }
     },
     {
       timezone: process.env.TZ || 'Africa/Lagos'

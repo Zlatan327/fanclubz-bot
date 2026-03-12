@@ -25,7 +25,7 @@ async function handle(client, message, command, args) {
 
   if (command === '!endcontest') {
     const id = parseInt(args[0], 10);
-    if (!id) {
+    if (Number.isNaN(id)) {
       await message.reply('Usage: !endcontest <id>');
       return;
     }

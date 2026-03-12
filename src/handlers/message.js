@@ -89,7 +89,7 @@ async function handleLinkModeration(client, message) {
 
     if (nextViolations === 1) {
       enqueue({
-        to: message.from,
+        to: senderJid,
         body:
           'Only Fanclubz links are allowed from members. This is your first warning. Further violations may result in removal from the group.'
       });
@@ -103,7 +103,7 @@ async function handleLinkModeration(client, message) {
         console.error('[links] failed to remove participant', err);
       }
       enqueue({
-        to: message.from,
+        to: senderJid,
         body:
           'You have been removed for repeatedly sharing non-Fanclubz links. Contact an admin if you believe this is a mistake.'
       });

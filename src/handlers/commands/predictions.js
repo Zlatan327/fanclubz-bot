@@ -33,7 +33,7 @@ async function handle(client, message, command, args) {
 
   if (command === '!endprediction') {
     const id = parseInt(args[0], 10);
-    if (!id) {
+    if (Number.isNaN(id)) {
       await message.reply('Usage: !endprediction <id>');
       return;
     }

@@ -7,6 +7,10 @@ const REPLY_DELAY_MS = parseInt(
   process.env.REPLY_DELAY_MS || '120000',
   10
 );
+const QUEUE_MAX_RETRIES = parseInt(
+  process.env.QUEUE_MAX_RETRIES || '3',
+  10
+);
 
 const queue = [];
 
@@ -30,7 +34,8 @@ function enqueue(message) {
   queue.push({
     ...message,
     enqueuedAt: now,
-    sendAfter: now + REPLY_DELAY_MS
+    sendAfter: now + REPLY_DELAY_MS,
+    retries: 0
   });
 }
 
@@ -41,13 +46,25 @@ async function flush(client) {
   while (i < queue.length) {
     const msg = queue[i];
     if (msg.sendAfter <= now) {
-      queue.splice(i, 1);
       try {
         await client.sendMessage(msg.to, msg.body, msg.options || {});
+        queue.splice(i, 1);
       } catch (err) {
         console.error('[queue] failed to send message', err);
+        const retries = (msg.retries || 0) + 1;
+        if (retries > QUEUE_MAX_RETRIES) {
+          console.warn(
+            '[queue] dropping message after max retries',
+            msg.to
+          );
+          queue.splice(i, 1);
+        } else {
+          msg.retries = retries;
+          msg.sendAfter = now + REPLY_DELAY_MS;
+          i += 1;
+        }
       }
-      // do not increment i; next item has shifted into current index
+      // on success or drop, do not increment i; next item has shifted into current index
     } else {
       i += 1;
     }
