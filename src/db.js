@@ -1,5 +1,4 @@
 const path = require('path');
-const Database = require('better-sqlite3');
 
 const DB_PATH =
   process.env.DB_PATH ||
@@ -26,17 +25,20 @@ if (process.env.USE_JSON_DB === 'true') {
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS members (
-    id TEXT PRIMARY KEY,
+    group_id TEXT,
+    user_id TEXT,
     name TEXT,
     joined_at INTEGER,
     msg_count INTEGER DEFAULT 0,
     invited_by TEXT,
     is_banned INTEGER DEFAULT 0,
-    violations INTEGER DEFAULT 0
+    violations INTEGER DEFAULT 0,
+    PRIMARY KEY (group_id, user_id)
   );
 
   CREATE TABLE IF NOT EXISTS contests (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id TEXT,
     title TEXT,
     description TEXT,
     posted_by TEXT,
@@ -56,6 +58,7 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS predictions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id TEXT,
     url TEXT UNIQUE,
     title TEXT,
     posted_at INTEGER,
@@ -63,13 +66,26 @@ db.exec(`
   );
 
   CREATE TABLE IF NOT EXISTS invite_contest (
-    inviter_jid TEXT PRIMARY KEY,
-    count INTEGER DEFAULT 0
+    group_id TEXT,
+    inviter_jid TEXT,
+    count INTEGER DEFAULT 0,
+    PRIMARY KEY (group_id, inviter_jid)
+  );
+
+  CREATE TABLE IF NOT EXISTS activity_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id TEXT,
+    user_id TEXT,
+    action TEXT, -- 'join', 'intro', 'kick', 'ban', 'leave'
+    actor_id TEXT, -- Who performed the action (optional)
+    timestamp INTEGER
   );
 
   CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL
+    group_id TEXT,
+    key TEXT,
+    value TEXT NOT NULL,
+    PRIMARY KEY (group_id, key)
   );
 
   CREATE INDEX IF NOT EXISTS idx_members_msg_count
@@ -88,18 +104,17 @@ db.exec(`
     ON contests (active, created_at DESC);
 `);
 
-function getOrCreateMember(id, name) {
-  const row = db.prepare('SELECT * FROM members WHERE id = ?').get(id);
+function getOrCreateMember(groupId, userId, name) {
+  const row = db.prepare('SELECT * FROM members WHERE group_id = ? AND user_id = ?').get(groupId, userId);
   if (row) return row;
   const now = Math.floor(Date.now() / 1000);
   db.prepare(
-    'INSERT INTO members (id, name, joined_at) VALUES (?, ?, ?)'
-  ).run(id, name || null, now);
-  return db.prepare('SELECT * FROM members WHERE id = ?').get(id);
+    'INSERT INTO members (group_id, user_id, name, joined_at) VALUES (?, ?, ?, ?)'
+  ).run(groupId, userId, name || null, now);
+  return db.prepare('SELECT * FROM members WHERE group_id = ? AND user_id = ?').get(groupId, userId);
 }
 
 module.exports = {
   db,
   getOrCreateMember
 };
-

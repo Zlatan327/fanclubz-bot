@@ -2,6 +2,8 @@ const { db } = require('../../db');
 const { sendTaggedMessage, GROUP_ID } = require('../utils');
 
 async function handle(client, message, command, args) {
+  const groupId = message.from;
+
   if (command === '!newcontest') {
     const text = args.join(' ');
     const [title, desc] = text.split('|').map((s) => s && s.trim());
@@ -15,13 +17,13 @@ async function handle(client, message, command, args) {
     try {
       const res = db
         .prepare(
-          'INSERT INTO contests (title, description, posted_by, created_at) VALUES (?, ?, ?, ?)'
+          'INSERT INTO contests (group_id, title, description, posted_by, created_at) VALUES (?, ?, ?, ?, ?)'
         )
-        .run(title, desc, message.author || message.from, now);
+        .run(groupId, title, desc, message.author || message.from, now);
       const id = res.lastInsertRowid;
       
       const msg = `Attention @all! New contest (#${id}) created:\n*${title}*\n${desc}`;
-      await sendTaggedMessage(client, GROUP_ID, msg);
+      await sendTaggedMessage(client, groupId, msg);
     } catch (err) {
       console.error('[contests] !newcontest error', err);
       await message.reply('Failed to create new contest.');
@@ -36,8 +38,8 @@ async function handle(client, message, command, args) {
       return;
     }
     try {
-      db.prepare('UPDATE contests SET active = 0 WHERE id = ?').run(id);
-      await message.reply(`Contest #${id} has been marked as ended.`);
+      db.prepare('UPDATE contests SET active = 0 WHERE group_id = ? AND id = ?').run(groupId, id);
+      await message.reply(`Contest #${id} has been marked as ended in this group.`);
     } catch (err) {
       console.error('[contests] !endcontest error', err);
       await message.reply('Failed to end contest.');
@@ -49,9 +51,9 @@ async function handle(client, message, command, args) {
     try {
       const rows = db
         .prepare(
-          'SELECT id, title, description FROM contests WHERE active = 1 ORDER BY created_at DESC LIMIT 10'
+          'SELECT id, title, description FROM contests WHERE group_id = ? AND active = 1 ORDER BY created_at DESC LIMIT 10'
         )
-        .all();
+        .all(groupId);
       if (!rows.length) {
         await message.reply('There are no active contests right now.');
         return;

@@ -13,7 +13,7 @@ function parseAdminIds() {
 const ADMIN_IDS = parseAdminIds();
 
 function isFromTargetGroup(message) {
-  return GROUP_ID && message.from === GROUP_ID;
+  return message.from.endsWith('@g.us');
 }
 
 function getSenderJid(message) {
@@ -21,9 +21,25 @@ function getSenderJid(message) {
   return message.author || message.from;
 }
 
-function isAdmin(message) {
+async function isAdmin(client, message) {
   const sender = getSenderJid(message);
-  return isFromTargetGroup(message) && ADMIN_IDS.includes(sender);
+  // Global admin check
+  if (ADMIN_IDS.includes(sender)) return true;
+
+  if (!message.from.endsWith('@g.us')) return false;
+
+  try {
+    const chat = await message.getChat();
+    if (!chat.isGroup) return false;
+
+    const participant = chat.participants.find(
+      (p) => (p.id._serialized || p.id) === sender
+    );
+    return participant ? participant.isAdmin || participant.isSuperAdmin : false;
+  } catch (err) {
+    console.error('[utils] isAdmin check failed', err);
+    return false;
+  }
 }
 
 function normalizeUrl(url) {
@@ -39,15 +55,15 @@ function normalizeUrl(url) {
   }
 }
 
-function incrementMessageCount(jid, name) {
+function incrementMessageCount(groupId, userId, name) {
   const now = Math.floor(Date.now() / 1000);
   db.prepare(
-    `INSERT INTO members (id, name, joined_at, msg_count)
-     VALUES (?, ?, ?, 1)
-     ON CONFLICT(id) DO UPDATE SET
+    `INSERT INTO members (group_id, user_id, name, joined_at, msg_count)
+     VALUES (?, ?, ?, ?, 1)
+     ON CONFLICT(group_id, user_id) DO UPDATE SET
        msg_count = members.msg_count + 1,
        name = COALESCE(excluded.name, members.name)`
-  ).run(jid, name || null, now);
+  ).run(groupId, userId, name || null, now);
 }
 
 async function sendTaggedMessage(client, groupId, text) {

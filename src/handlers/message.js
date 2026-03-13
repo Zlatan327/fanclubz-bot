@@ -17,7 +17,8 @@ const commands = {
   moderation: require('./commands/moderation'),
   contests: require('./commands/contests'),
   predictions: require('./commands/predictions'),
-  rules: require('./commands/rules')
+  rules: require('./commands/rules'),
+  help: require('./commands/help')
 };
 
 function extractUrls(text) {
@@ -38,7 +39,7 @@ function isFanclubzUrl(url) {
 
 async function handleLinkModeration(client, message) {
   const senderJid = getSenderJid(message);
-  const isSenderAdmin = isAdmin(message);
+  const isSenderAdmin = await isAdmin(client, message);
   const urls = extractUrls(message.body || '');
   if (!urls.length) return;
 
@@ -69,18 +70,20 @@ async function handleLinkModeration(client, message) {
       console.error('[links] failed to delete message', err);
     }
 
+    const groupId = message.from;
     const member = db
-      .prepare('SELECT violations, is_banned FROM members WHERE id = ?')
-      .get(senderJid);
+      .prepare('SELECT violations, is_banned FROM members WHERE group_id = ? AND user_id = ?')
+      .get(groupId, senderJid);
     const currentViolations = member ? member.violations || 0 : 0;
     const nextViolations = currentViolations + 1;
 
     db.prepare(
-      `INSERT INTO members (id, name, joined_at, violations)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET
+      `INSERT INTO members (group_id, user_id, name, joined_at, violations)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(group_id, user_id) DO UPDATE SET
          violations = excluded.violations`
     ).run(
+      groupId,
       senderJid,
       message._data.notifyName || null,
       Math.floor(Date.now() / 1000),
@@ -89,33 +92,33 @@ async function handleLinkModeration(client, message) {
 
     if (nextViolations === 1) {
       enqueue({
-        to: senderJid,
+        to: groupId,
         body:
           'Only Fanclubz links are allowed from members. This is your first warning. Further violations may result in removal from the group.'
       });
     } else {
       db.prepare(
-        'UPDATE members SET is_banned = 1 WHERE id = ?'
-      ).run(senderJid);
+        'UPDATE members SET is_banned = 1 WHERE group_id = ? AND user_id = ?'
+      ).run(groupId, senderJid);
       try {
-        await client.removeParticipants(GROUP_ID, [senderJid]);
+        await client.removeParticipants(groupId, [senderJid]);
       } catch (err) {
         console.error('[links] failed to remove participant', err);
       }
       enqueue({
-        to: senderJid,
+        to: groupId,
         body:
-          'You have been removed for repeatedly sharing non-Fanclubz links. Contact an admin if you believe this is a mistake.'
+          'A member has been removed for repeatedly sharing non-Fanclubz links.'
       });
     }
   }
 }
 
 async function routeCommand(client, message, command, args) {
-  const senderIsAdmin = isAdmin(message);
+  const senderIsAdmin = await isAdmin(client, message);
 
   if (
-    ['!top', '!myrank', '!kick', '!ban', '!newcontest', '!endcontest', '!setrules', '!inviteleader', '!resetleader', '!endprediction'].includes(
+    ['!top', '!myrank', '!kick', '!ban', '!newcontest', '!endcontest', '!setrules', '!inviteleader', '!resetleader', '!endprediction', '!everyone', '!clear'].includes(
       command
     ) &&
     !senderIsAdmin
@@ -124,16 +127,24 @@ async function routeCommand(client, message, command, args) {
   }
 
   switch (command) {
+    case '!help':
+    case '!commands':
+      return commands.help.handle(client, message, command, args);
     case '!top':
     case '!myrank':
     case '!inviteleader':
     case '!resetleader':
+    case '!active':
       return commands.leaderboard.handle(client, message, command, args);
     case '!invited':
     case '!invitelink':
+    case '!intro':
+    case '!invites':
       return commands.invites.handle(client, message, command, args);
     case '!kick':
     case '!ban':
+    case '!everyone':
+    case '!clear':
       return commands.moderation.handle(client, message, command, args);
     case '!newcontest':
     case '!endcontest':
@@ -141,6 +152,8 @@ async function routeCommand(client, message, command, args) {
       return commands.contests.handle(client, message, command, args);
     case '!predictions':
     case '!endprediction':
+    case '!find':
+    case '!stats':
       return commands.predictions.handle(client, message, command, args);
     case '!rules':
     case '!setrules':
@@ -150,30 +163,34 @@ async function routeCommand(client, message, command, args) {
 }
 
 async function handleMessage(client, message) {
+  console.log(`[message] from: ${message.from}, author: ${message.author}, body: ${message.body}`);
   if (!isFromTargetGroup(message)) {
     return;
   }
 
   const senderJid = getSenderJid(message);
+  const groupId = message.from;
   const banned = db
-    .prepare('SELECT is_banned FROM members WHERE id = ?')
-    .get(senderJid);
+    .prepare('SELECT is_banned FROM members WHERE group_id = ? AND user_id = ?')
+    .get(groupId, senderJid);
   if (banned && banned.is_banned) {
     try {
-      await client.removeParticipants(GROUP_ID, [senderJid]);
+      await client.removeParticipants(groupId, [senderJid]);
     } catch (err) {
       console.error('[message] failed to re-kick banned member', err);
     }
     return;
   }
 
-  incrementMessageCount(senderJid, message._data.notifyName);
+  incrementMessageCount(message.from, senderJid, message._data.notifyName);
 
   const body = (message.body || '').trim();
 
-  if (body.startsWith('!')) {
+  if (body.startsWith('!') || body.startsWith('/')) {
     const [cmd, ...rest] = body.split(/\s+/);
-    await routeCommand(client, message, cmd.toLowerCase(), rest);
+    // Remove the prefix from the command name before routing
+    const commandName = '!' + cmd.slice(1).toLowerCase();
+    await routeCommand(client, message, commandName, rest);
   } else {
     await handleLinkModeration(client, message);
   }

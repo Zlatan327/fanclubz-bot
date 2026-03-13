@@ -3,23 +3,24 @@ const { getSenderJid } = require('../utils');
 
 async function handle(client, message, command) {
   const senderJid = getSenderJid(message);
+  const groupId = message.from;
 
   if (command === '!top') {
     try {
       const rows = db
         .prepare(
-          'SELECT name, msg_count FROM members ORDER BY msg_count DESC LIMIT 10'
+          'SELECT name, msg_count FROM members WHERE group_id = ? ORDER BY msg_count DESC LIMIT 10'
         )
-        .all();
+        .all(groupId);
       if (!rows.length) {
-        await message.reply('No messages tracked yet.');
+        await message.reply('No messages tracked in this group yet.');
         return;
       }
       const lines = rows.map(
         (row, idx) =>
           `${idx + 1}. ${row.name || 'Member'} — ${row.msg_count} msgs`
       );
-      await message.reply('*Top 10 by messages:*\n' + lines.join('\n'));
+      await message.reply('*Top 10 by messages (This Group):*\n' + lines.join('\n'));
     } catch (err) {
       console.error('[leaderboard] !top error', err);
       await message.reply('Failed to fetch leaderboard.');
@@ -31,18 +32,19 @@ async function handle(client, message, command) {
     const row = db
       .prepare(
         `SELECT rank, msg_count FROM (
-           SELECT id, msg_count, ROW_NUMBER() OVER (ORDER BY msg_count DESC) as rank
+           SELECT user_id, msg_count, ROW_NUMBER() OVER (ORDER BY msg_count DESC) as rank
            FROM members
-         ) WHERE id = ?`
+           WHERE group_id = ?
+         ) WHERE user_id = ?`
       )
-      .get(senderJid);
+      .get(groupId, senderJid);
 
     if (!row) {
-      await message.reply('You have no messages recorded yet.');
+      await message.reply('You have no messages recorded in this group yet.');
       return;
     }
     await message.reply(
-      `Your rank: #${row.rank} with ${row.msg_count} messages.`
+      `Your rank in this group: #${row.rank} with ${row.msg_count} messages.`
     );
     return;
   }
@@ -52,13 +54,14 @@ async function handle(client, message, command) {
       .prepare(
         `SELECT ic.inviter_jid, ic.count, m.name
          FROM invite_contest ic
-         LEFT JOIN members m ON m.id = ic.inviter_jid
+         LEFT JOIN members m ON m.user_id = ic.inviter_jid AND m.group_id = ic.group_id
+         WHERE ic.group_id = ?
          ORDER BY ic.count DESC
          LIMIT 10`
       )
-      .all();
+      .all(groupId);
     if (!rows.length) {
-      await message.reply('No invites tracked yet.');
+      await message.reply('No invites tracked in this group yet.');
       return;
     }
     const lines = rows.map(
@@ -66,14 +69,14 @@ async function handle(client, message, command) {
         `${idx + 1}. ${row.name || 'Member'} — ${row.count} invites`
     );
     await message.reply(
-      '*Top 10 by successful invites:*\n' + lines.join('\n')
+      '*Top 10 by successful invites (This Group):*\n' + lines.join('\n')
     );
     return;
   }
 
   if (command === '!resetleader') {
-    db.prepare('UPDATE members SET msg_count = 0').run();
-    await message.reply('Leaderboard has been reset for all members.');
+    db.prepare('UPDATE members SET msg_count = 0 WHERE group_id = ?').run(groupId);
+    await message.reply('Group leaderboard has been reset.');
     return;
   }
 }
