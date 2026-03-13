@@ -5,37 +5,44 @@ async function handle(client, message, command) {
   const senderJid = getSenderJid(message);
 
   if (command === '!top') {
-    const rows = db
-      .prepare(
-        'SELECT name, msg_count FROM members ORDER BY msg_count DESC LIMIT 10'
-      )
-      .all();
-    if (!rows.length) {
-      await message.reply('No messages tracked yet.');
-      return;
+    try {
+      const rows = db
+        .prepare(
+          'SELECT name, msg_count FROM members ORDER BY msg_count DESC LIMIT 10'
+        )
+        .all();
+      if (!rows.length) {
+        await message.reply('No messages tracked yet.');
+        return;
+      }
+      const lines = rows.map(
+        (row, idx) =>
+          `${idx + 1}. ${row.name || 'Member'} — ${row.msg_count} msgs`
+      );
+      await message.reply('*Top 10 by messages:*\n' + lines.join('\n'));
+    } catch (err) {
+      console.error('[leaderboard] !top error', err);
+      await message.reply('Failed to fetch leaderboard.');
     }
-    const lines = rows.map(
-      (row, idx) =>
-        `${idx + 1}. ${row.name || 'Member'} — ${row.msg_count} msgs`
-    );
-    await message.reply('*Top 10 by messages:*\n' + lines.join('\n'));
     return;
   }
 
   if (command === '!myrank') {
-    const all = db
+    const row = db
       .prepare(
-        'SELECT id, name, msg_count FROM members ORDER BY msg_count DESC'
+        `SELECT rank, msg_count FROM (
+           SELECT id, msg_count, ROW_NUMBER() OVER (ORDER BY msg_count DESC) as rank
+           FROM members
+         ) WHERE id = ?`
       )
-      .all();
-    const index = all.findIndex((m) => m.id === senderJid);
-    if (index === -1) {
+      .get(senderJid);
+
+    if (!row) {
       await message.reply('You have no messages recorded yet.');
       return;
     }
-    const me = all[index];
     await message.reply(
-      `Your rank: #${index + 1} with ${me.msg_count} messages.`
+      `Your rank: #${row.rank} with ${row.msg_count} messages.`
     );
     return;
   }

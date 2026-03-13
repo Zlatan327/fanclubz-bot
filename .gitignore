@@ -1,0 +1,11 @@
+node_modules/
+.env
+data/
+sessions/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.json
+!package.json
+!package-lock.json
+!railway.toml

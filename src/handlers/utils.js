@@ -50,6 +50,16 @@ function incrementMessageCount(jid, name) {
   ).run(jid, name || null, now);
 }
 
+async function sendTaggedMessage(client, groupId, text) {
+  try {
+    // Neater approach: Mentioning the group ID itself tags everyone for admins
+    await client.sendMessage(groupId, text, { mentions: [groupId] });
+  } catch (err) {
+    console.error('[utils] tagAll failed', err);
+    await client.sendMessage(groupId, text);
+  }
+}
+
 module.exports = {
   GROUP_ID,
   ADMIN_IDS,
@@ -57,6 +67,7 @@ module.exports = {
   isFromTargetGroup,
   getSenderJid,
   normalizeUrl,
-  incrementMessageCount
+  incrementMessageCount,
+  sendTaggedMessage
 };
 

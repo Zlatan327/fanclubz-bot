@@ -21,13 +21,18 @@ async function handle(client, message, command) {
   }
 
   if (command === '!ban') {
-    const stmt = db.prepare(
-      'UPDATE members SET is_banned = 1 WHERE id = ?'
-    );
-    for (const t of targets) {
-      stmt.run(t);
+    try {
+      const stmt = db.prepare(
+        'UPDATE members SET is_banned = 1 WHERE id = ?'
+      );
+      for (const t of targets) {
+        stmt.run(t);
+      }
+      await message.reply('Selected members have been banned.');
+    } catch (err) {
+      console.error('[moderation] !ban error', err);
+      await message.reply('Failed to ban selected members.');
     }
-    await message.reply('Selected members have been banned.');
   } else if (command === '!kick') {
     await message.reply('Selected members have been removed.');
   }

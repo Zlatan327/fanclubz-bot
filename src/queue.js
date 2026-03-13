@@ -1,3 +1,5 @@
+const { db } = require('./db');
+
 const QUEUE_MAX_LENGTH = parseInt(process.env.QUEUE_MAX_LENGTH || '200', 10);
 const QUEUE_PER_USER_MAX = parseInt(
   process.env.QUEUE_PER_USER_MAX || '10',
@@ -12,62 +14,72 @@ const QUEUE_MAX_RETRIES = parseInt(
   10
 );
 
-const queue = [];
-
 function enqueue(message) {
   const now = Date.now();
 
-  const userItems = queue.filter((q) => q.to === message.to);
-  if (userItems.length >= QUEUE_PER_USER_MAX) {
-    console.warn(
-      '[queue] dropping message due to per-user cap',
-      message.to
+  try {
+    const userCount = db
+      .prepare('SELECT COUNT(*) as count FROM message_queue WHERE recipient_jid = ?')
+      .get(message.to).count;
+
+    if (userCount >= QUEUE_PER_USER_MAX) {
+      console.warn('[queue] dropping message due to per-user cap', message.to);
+      return;
+    }
+
+    const totalCount = db
+      .prepare('SELECT COUNT(*) as count FROM message_queue')
+      .get().count;
+
+    if (totalCount >= QUEUE_MAX_LENGTH) {
+      // Drop oldest
+      db.prepare('DELETE FROM message_queue WHERE id = (SELECT MIN(id) FROM message_queue)').run();
+      console.warn('[queue] global cap reached, dropping oldest');
+    }
+
+    db.prepare(
+      `INSERT INTO message_queue (recipient_jid, body, options, enqueued_at, send_after, retries)
+       VALUES (?, ?, ?, ?, ?, 0)`
+    ).run(
+      message.to,
+      message.body,
+      JSON.stringify(message.options || {}),
+      now,
+      now + REPLY_DELAY_MS
     );
-    return;
+  } catch (err) {
+    console.error('[queue] failed to enqueue message', err);
   }
-
-  if (queue.length >= QUEUE_MAX_LENGTH) {
-    const dropped = queue.shift();
-    console.warn('[queue] global cap reached, dropping oldest', dropped.to);
-  }
-
-  queue.push({
-    ...message,
-    enqueuedAt: now,
-    sendAfter: now + REPLY_DELAY_MS,
-    retries: 0
-  });
 }
 
 async function flush(client) {
   const now = Date.now();
-  let i = 0;
 
-  while (i < queue.length) {
-    const msg = queue[i];
-    if (msg.sendAfter <= now) {
+  try {
+    const pending = db
+      .prepare('SELECT * FROM message_queue WHERE send_after <= ?')
+      .all(now);
+
+    for (const msg of pending) {
       try {
-        await client.sendMessage(msg.to, msg.body, msg.options || {});
-        queue.splice(i, 1);
+        const options = JSON.parse(msg.options || '{}');
+        await client.sendMessage(msg.recipient_jid, msg.body, options);
+        db.prepare('DELETE FROM message_queue WHERE id = ?').run(msg.id);
       } catch (err) {
         console.error('[queue] failed to send message', err);
-        const retries = (msg.retries || 0) + 1;
-        if (retries > QUEUE_MAX_RETRIES) {
-          console.warn(
-            '[queue] dropping message after max retries',
-            msg.to
-          );
-          queue.splice(i, 1);
+        const nextRetries = (msg.retries || 0) + 1;
+        if (nextRetries > QUEUE_MAX_RETRIES) {
+          console.warn('[queue] dropping message after max retries', msg.recipient_jid);
+          db.prepare('DELETE FROM message_queue WHERE id = ?').run(msg.id);
         } else {
-          msg.retries = retries;
-          msg.sendAfter = now + REPLY_DELAY_MS;
-          i += 1;
+          db.prepare(
+            'UPDATE message_queue SET retries = ?, send_after = ? WHERE id = ?'
+          ).run(nextRetries, now + REPLY_DELAY_MS, msg.id);
         }
       }
-      // on success or drop, do not increment i; next item has shifted into current index
-    } else {
-      i += 1;
     }
+  } catch (err) {
+    console.error('[queue] failed to flush queue', err);
   }
 }
 

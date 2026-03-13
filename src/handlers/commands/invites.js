@@ -14,33 +14,38 @@ async function handle(client, message, command) {
     }
     const inviter = mentions[0].id._serialized;
 
-    const existing = db
-      .prepare('SELECT invited_by FROM members WHERE id = ?')
-      .get(senderJid);
-    if (existing && existing.invited_by) {
-      await message.reply('You have already set who invited you.');
-      return;
+    try {
+      const existing = db
+        .prepare('SELECT invited_by FROM members WHERE id = ?')
+        .get(senderJid);
+      if (existing && existing.invited_by) {
+        await message.reply('You have already set who invited you.');
+        return;
+      }
+
+      const now = Math.floor(Date.now() / 1000);
+      db.prepare(
+        `INSERT INTO members (id, name, joined_at, invited_by)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET invited_by = excluded.invited_by`
+      ).run(
+        senderJid,
+        message._data.notifyName || null,
+        now,
+        inviter
+      );
+
+      db.prepare(
+        `INSERT INTO invite_contest (inviter_jid, count)
+         VALUES (?, 1)
+         ON CONFLICT(inviter_jid) DO UPDATE SET count = count + 1`
+      ).run(inviter);
+
+      await message.reply('Got it, your inviter has been credited.');
+    } catch (err) {
+      console.error('[invites] !invited error', err);
+      await message.reply('Failed to credit inviter.');
     }
-
-    const now = Math.floor(Date.now() / 1000);
-    db.prepare(
-      `INSERT INTO members (id, name, joined_at, invited_by)
-       VALUES (?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET invited_by = excluded.invited_by`
-    ).run(
-      senderJid,
-      message._data.notifyName || null,
-      now,
-      inviter
-    );
-
-    db.prepare(
-      `INSERT INTO invite_contest (inviter_jid, count)
-       VALUES (?, 1)
-       ON CONFLICT(inviter_jid) DO UPDATE SET count = count + 1`
-    ).run(inviter);
-
-    await message.reply('Got it, your inviter has been credited.');
     return;
   }
 
