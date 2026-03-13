@@ -6,7 +6,8 @@ const {
   isFromTargetGroup,
   getSenderJid,
   normalizeUrl,
-  incrementMessageCount
+  incrementMessageCount,
+  scheduleDeletion
 } = require('./utils');
 
 const FANCLUBZ_DOMAIN = process.env.FANCLUBZ_DOMAIN;
@@ -58,8 +59,25 @@ async function handleLinkModeration(client, message) {
   }
 
   if (hasFanclubz) {
-    for (const url of normalized.filter(isFanclubzUrl)) {
-      await commands.predictions.onFanclubzUrl(client, message, url);
+    let description = message.body || '';
+    const fanclubzUrls = normalized.filter(isFanclubzUrl);
+    for (const url of fanclubzUrls) {
+      description = description.replace(url, '').trim();
+    }
+    
+    let savedCount = 0;
+    for (const url of fanclubzUrls) {
+      const isNew = await commands.predictions.onFanclubzUrl(client, message, url, description);
+      if (isNew) savedCount++;
+    }
+
+    if (savedCount > 0) {
+      const response = await message.reply(
+        `✅ Saved ${savedCount} prediction link${savedCount > 1 ? 's' : ''}! Type /predictions to view.`
+      );
+      if (response && response.id) {
+        scheduleDeletion(response, parseInt(process.env.DELETE_TTL_MS || '120000', 10));
+      }
     }
   }
 
@@ -91,11 +109,7 @@ async function handleLinkModeration(client, message) {
     );
 
     if (nextViolations === 1) {
-      enqueue({
-        to: groupId,
-        body:
-          'Only Fanclubz links are allowed from members. This is your first warning. Further violations may result in removal from the group.'
-      });
+      return await client.sendMessage(groupId, 'Only Fanclubz links are allowed from members. This is your first warning. Further violations may result in removal from the group.');
     } else {
       db.prepare(
         'UPDATE members SET is_banned = 1 WHERE group_id = ? AND user_id = ?'
@@ -105,11 +119,7 @@ async function handleLinkModeration(client, message) {
       } catch (err) {
         console.error('[links] failed to remove participant', err);
       }
-      enqueue({
-        to: groupId,
-        body:
-          'A member has been removed for repeatedly sharing non-Fanclubz links.'
-      });
+      return await client.sendMessage(groupId, 'A member has been removed for repeatedly sharing non-Fanclubz links.');
     }
   }
 }
@@ -163,6 +173,7 @@ async function routeCommand(client, message, command, args) {
 }
 
 async function handleMessage(client, message) {
+  if (message.fromMe) return; // Prevent bot from responding to itself
   console.log(`[message] from: ${message.from}, author: ${message.author}, body: ${message.body}`);
   if (!isFromTargetGroup(message)) {
     return;
@@ -185,12 +196,17 @@ async function handleMessage(client, message) {
   incrementMessageCount(message.from, senderJid, message._data.notifyName);
 
   const body = (message.body || '').trim();
+  const DELETE_TTL = parseInt(process.env.DELETE_TTL_MS || '120000', 10);
 
   if (body.startsWith('!') || body.startsWith('/')) {
+    scheduleDeletion(message, DELETE_TTL);
     const [cmd, ...rest] = body.split(/\s+/);
     // Remove the prefix from the command name before routing
     const commandName = '!' + cmd.slice(1).toLowerCase();
-    await routeCommand(client, message, commandName, rest);
+    const result = await routeCommand(client, message, commandName, rest);
+    if (result && result.id) {
+      scheduleDeletion(result, DELETE_TTL);
+    }
   } else {
     await handleLinkModeration(client, message);
   }

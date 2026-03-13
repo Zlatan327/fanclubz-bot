@@ -55,6 +55,19 @@ function normalizeUrl(url) {
   }
 }
 
+async function deleteMessage(client, chatId, messageId) {
+  try {
+    const chat = await client.getChatById(chatId);
+    const msgs = await chat.fetchMessages({ limit: 50 });
+    const target = msgs.find(m => m.id._serialized === messageId);
+    if (target) {
+      await target.delete(true);
+    }
+  } catch (err) {
+    console.error('[utils] failed to delete message', chatId, messageId, err.message);
+  }
+}
+
 function incrementMessageCount(groupId, userId, name) {
   const now = Math.floor(Date.now() / 1000);
   db.prepare(
@@ -69,10 +82,22 @@ function incrementMessageCount(groupId, userId, name) {
 async function sendTaggedMessage(client, groupId, text) {
   try {
     // Neater approach: Mentioning the group ID itself tags everyone for admins
-    await client.sendMessage(groupId, text, { mentions: [groupId] });
+    const response = await client.sendMessage(groupId, text, { mentions: [groupId] });
+    return response;
   } catch (err) {
     console.error('[utils] tagAll failed', err);
-    await client.sendMessage(groupId, text);
+    return await client.sendMessage(groupId, text);
+  }
+}
+
+function scheduleDeletion(message, delayMs) {
+  const deleteAt = Date.now() + delayMs;
+  try {
+    db.prepare(
+      'INSERT INTO scheduled_deletions (chat_id, message_id, delete_at) VALUES (?, ?, ?)'
+    ).run(message.from, message.id._serialized, deleteAt);
+  } catch (err) {
+    console.error('[utils] failed to schedule deletion', err);
   }
 }
 
@@ -84,6 +109,8 @@ module.exports = {
   getSenderJid,
   normalizeUrl,
   incrementMessageCount,
-  sendTaggedMessage
+  sendTaggedMessage,
+  scheduleDeletion,
+  deleteMessage
 };
 

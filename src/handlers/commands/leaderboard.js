@@ -20,10 +20,10 @@ async function handle(client, message, command) {
         (row, idx) =>
           `${idx + 1}. ${row.name || 'Member'} — ${row.msg_count} msgs`
       );
-      await message.reply('*Top 10 by messages (This Group):*\n' + lines.join('\n'));
+      return await message.reply('*Top 10 by messages (This Group):*\n' + lines.join('\n'));
     } catch (err) {
       console.error('[leaderboard] !top error', err);
-      await message.reply('Failed to fetch leaderboard.');
+      return await message.reply('Failed to fetch leaderboard.');
     }
     return;
   }
@@ -43,7 +43,7 @@ async function handle(client, message, command) {
       await message.reply('You have no messages recorded in this group yet.');
       return;
     }
-    await message.reply(
+    return await message.reply(
       `Your rank in this group: #${row.rank} with ${row.msg_count} messages.`
     );
     return;
@@ -68,7 +68,7 @@ async function handle(client, message, command) {
       (row, idx) =>
         `${idx + 1}. ${row.name || 'Member'} — ${row.count} invites`
     );
-    await message.reply(
+    return await message.reply(
       '*Top 10 by successful invites (This Group):*\n' + lines.join('\n')
     );
     return;
@@ -76,7 +76,7 @@ async function handle(client, message, command) {
 
   if (command === '!resetleader') {
     db.prepare('UPDATE members SET msg_count = 0 WHERE group_id = ?').run(groupId);
-    await message.reply('Group leaderboard has been reset.');
+    return await message.reply('Group leaderboard has been reset.');
     return;
   }
 }

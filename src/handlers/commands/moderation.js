@@ -5,7 +5,7 @@ async function handle(client, message, command) {
   const mentions = await message.getMentions();
   const groupId = message.from;
   if (!mentions.length) {
-    await message.reply('Please mention at least one user.');
+    return await message.reply('Please mention at least one user.');
     return;
   }
 
@@ -36,13 +36,13 @@ async function handle(client, message, command) {
       for (const t of targets) {
         stmt.run(groupId, t);
       }
-      await message.reply('Selected members have been banned in this group.');
+      return await message.reply('Selected members have been banned in this group.');
     } catch (err) {
       console.error('[moderation] !ban error', err);
-      await message.reply('Failed to ban selected members.');
+      return await message.reply('Failed to ban selected members.');
     }
   } else if (command === '!kick') {
-    await message.reply('Selected members have been removed.');
+    return await message.reply('Selected members have been removed.');
   }
 
   if (command === '!everyone') {
@@ -59,10 +59,10 @@ async function handle(client, message, command) {
   if (command === '!clear') {
     try {
       db.prepare('DELETE FROM predictions WHERE group_id = ?').run(groupId);
-      await message.reply('🗑️ All predictions for this group have been cleared.');
+      return await message.reply('🗑️ All predictions for this group have been cleared.');
     } catch (err) {
       console.error('[moderation] !clear error', err);
-      await message.reply('Failed to clear predictions.');
+      return await message.reply('Failed to clear predictions.');
     }
   }
 }

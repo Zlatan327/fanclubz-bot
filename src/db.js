@@ -60,7 +60,7 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     group_id TEXT,
     url TEXT UNIQUE,
-    title TEXT,
+    description TEXT,
     posted_at INTEGER,
     active INTEGER DEFAULT 1
   );
@@ -79,6 +79,13 @@ db.exec(`
     action TEXT, -- 'join', 'intro', 'kick', 'ban', 'leave'
     actor_id TEXT, -- Who performed the action (optional)
     timestamp INTEGER
+  );
+
+  CREATE TABLE IF NOT EXISTS scheduled_deletions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id TEXT,
+    message_id TEXT,
+    delete_at INTEGER
   );
 
   CREATE TABLE IF NOT EXISTS settings (

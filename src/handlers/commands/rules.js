@@ -10,7 +10,7 @@ async function handle(client, message, command, args) {
       
       const rules = row ? row.value : '• Be polite and respectful\n• No spamming or advertising\n• No non-Fanclubz links';
       
-      await message.reply('*Group Rules:*\n' + rules);
+      return await message.reply('*Group Rules:*\n' + rules);
     } catch (err) {
       console.error('[rules] !rules error', err);
       await message.reply('Failed to fetch rules.');
@@ -30,7 +30,7 @@ async function handle(client, message, command, args) {
          VALUES (?, 'rules_text', ?)
          ON CONFLICT(group_id, key) DO UPDATE SET value = excluded.value`
       ).run(groupId, text);
-      await message.reply('Rules have been updated.');
+      return await message.reply('Rules have been updated.');
     } catch (err) {
       console.error('[rules] !setrules error', err);
       await message.reply('Failed to update rules.');

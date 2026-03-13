@@ -47,10 +47,10 @@ async function handle(client, message, command) {
         'INSERT INTO activity_log (group_id, user_id, action, actor_id, timestamp) VALUES (?, ?, ?, ?, ?)'
       ).run(groupId, senderJid, 'intro', inviter, now);
 
-      await message.reply('Got it, your inviter has been credited for this group.');
+      return await message.reply('Got it, your inviter has been credited for this group.');
     } catch (err) {
       console.error('[invites] !invited error', err);
-      await message.reply('Failed to credit inviter.');
+      return await message.reply('Failed to credit inviter.');
     }
     return;
   }

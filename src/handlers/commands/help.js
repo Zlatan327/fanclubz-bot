@@ -27,7 +27,7 @@ async function handle(client, message, command) {
 
 _ℹ️ The bot automatically detects and saves FanClubz prediction links posted in the group._`;
 
-  await message.reply(HELP_TEXT);
+  return await message.reply(HELP_TEXT);
 }
 
 module.exports = {

@@ -1,18 +1,21 @@
 const { db } = require('../../db');
 
-async function onFanclubzUrl(client, message, url) {
+async function onFanclubzUrl(client, message, url, description) {
   const groupId = message.from;
   const now = Math.floor(Date.now() / 1000);
   try {
+    const existing = db.prepare('SELECT id FROM predictions WHERE url = ?').get(url);
+    
     db.prepare(
-      `INSERT INTO predictions (group_id, url, posted_at, active)
-       VALUES (?, ?, ?, 1)
-       ON CONFLICT(url) DO UPDATE SET posted_at = excluded.posted_at, active = 1`
-    ).run(groupId, url, now);
+      `INSERT INTO predictions (group_id, url, description, posted_at, active)
+       VALUES (?, ?, ?, ?, 1)
+       ON CONFLICT(url) DO UPDATE SET posted_at = excluded.posted_at, description = excluded.description, active = 1`
+    ).run(groupId, url, description || '', now);
 
-    await message.reply(
-      '✅ Saved prediction! Type /predictions or /find <keyword> to look it up.'
-    );
+    if (!existing) {
+      return true; // Indicate it was a new link
+    }
+    return false;
   } catch (err) {
     console.error('[predictions] onFanclubzUrl error', err);
   }
