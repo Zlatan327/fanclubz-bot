@@ -43,15 +43,19 @@ async function isAdmin(client, message) {
 }
 
 function normalizeUrl(url) {
+  let target = url.trim();
+  if (!target.startsWith('http')) {
+    target = 'https://' + target;
+  }
   try {
-    const u = new URL(url);
+    const u = new URL(target);
     u.hash = '';
     if (u.pathname.endsWith('/')) {
       u.pathname = u.pathname.slice(0, -1);
     }
     return u.toString();
   } catch {
-    return url;
+    return target;
   }
 }
 

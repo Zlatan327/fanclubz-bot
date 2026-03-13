@@ -23,19 +23,16 @@ const commands = {
 };
 
 function extractUrls(text) {
-  const urlRegex =
-    /https?:\/\/[^\s]+/gi;
+  // Catch http/https OR links starting with the domain if provided
+  const domain = process.env.FANCLUBZ_DOMAIN || 'fanclubz.app';
+  const urlRegex = new RegExp(`(https?://[^\s]+)|([a-zA-Z0-9-.]+\\b${domain.replace('.', '\\.')}[^\\s]*)`, 'gi');
   return text.match(urlRegex) || [];
 }
 
 function isFanclubzUrl(url) {
   if (!FANCLUBZ_DOMAIN) return false;
-  try {
-    const u = new URL(url);
-    return u.hostname.includes(FANCLUBZ_DOMAIN);
-  } catch {
-    return false;
-  }
+  const target = url.toLowerCase();
+  return target.includes(FANCLUBZ_DOMAIN.toLowerCase());
 }
 
 async function handleLinkModeration(client, message) {

@@ -115,11 +115,12 @@ class JsonDatabase {
         return {
             run: (groupId, url, description, postedAt, active) => {
                 const index = self.data.predictions.findIndex(p => p.url === url);
+                const isActive = active !== undefined ? active : 1;
                 if (index > -1) {
-                    self.data.predictions[index] = { ...self.data.predictions[index], description, posted_at: postedAt, active };
+                    self.data.predictions[index] = { ...self.data.predictions[index], description, posted_at: postedAt, active: isActive };
                 } else {
                     const id = self.data.predictions.length + 1;
-                    self.data.predictions.push({ id, group_id: groupId, url, description, posted_at: postedAt, active });
+                    self.data.predictions.push({ id, group_id: groupId, url, description, posted_at: postedAt, active: isActive });
                 }
                 self.save();
             }
