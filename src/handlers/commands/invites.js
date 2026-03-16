@@ -4,7 +4,7 @@ const { getSenderJid } = require('../utils');
 async function handle(client, message, command) {
   const senderJid = getSenderJid(message);
 
-  if (command === '!invited') {
+  if (command === '!invited' || command === '!intro') {
     const mentions = await message.getMentions();
     if (!mentions.length) {
       await message.reply(
@@ -66,4 +66,5 @@ async function handle(client, message, command) {
 module.exports = {
   handle
 };
+
 

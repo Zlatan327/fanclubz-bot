@@ -1,5 +1,6 @@
 const { enqueue } = require('../queue');
 const { db } = require('../db');
+const { scheduleDeletion } = require('../autodelete');
 const {
   GROUP_ID,
   isAdmin,
@@ -17,19 +18,21 @@ const commands = {
   moderation: require('./commands/moderation'),
   contests: require('./commands/contests'),
   predictions: require('./commands/predictions'),
-  rules: require('./commands/rules')
+  rules: require('./commands/rules'),
+  faq: require('./commands/faq')
 };
 
 function extractUrls(text) {
   const urlRegex =
-    /https?:\/\/[^\s]+/gi;
+    /(?:https?:\/\/[^\s]+)|(?:www\.)?fanclubz\.[a-z]{2,}(?:\/\S*)?/gi;
   return text.match(urlRegex) || [];
 }
 
 function isFanclubzUrl(url) {
   if (!FANCLUBZ_DOMAIN) return false;
   try {
-    const u = new URL(url);
+    const target = url.startsWith('http') ? url : 'https://' + url;
+    const u = new URL(target);
     return u.hostname.includes(FANCLUBZ_DOMAIN);
   } catch {
     return false;
@@ -123,6 +126,23 @@ async function routeCommand(client, message, command, args) {
     return;
   }
 
+  // Auto-delete wrapper Strategy (2 mins = 120s for BOTH):
+  const originalReply = message.reply.bind(message);
+  message.reply = async (...args) => {
+    try {
+      const reply = await originalReply(...args);
+      if (reply && reply.id) {
+        scheduleDeletion(reply.id._serialized, message.from, 120);
+      }
+      return reply;
+    } catch (err) {
+      console.error('[wrapper] failed to reply or schedule', err);
+    }
+  };
+
+  // Schedule user command message for deletion
+  scheduleDeletion(message.id._serialized, message.from, 120);
+
   switch (command) {
     case '!top':
     case '!myrank':
@@ -145,6 +165,10 @@ async function routeCommand(client, message, command, args) {
     case '!rules':
     case '!setrules':
       return commands.rules.handle(client, message, command, args);
+    case '!faq':
+    case '!help':
+    case '!info':
+      return commands.faq.handle(client, message, command, args);
     default:
   }
 }

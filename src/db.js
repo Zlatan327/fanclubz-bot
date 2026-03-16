@@ -47,6 +47,12 @@ db.exec(`
     value TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS messages_to_delete (
+    message_id TEXT PRIMARY KEY,
+    chat_id TEXT,
+    delete_at INTEGER
+  );
+
   CREATE INDEX IF NOT EXISTS idx_members_msg_count
     ON members (msg_count DESC);
 

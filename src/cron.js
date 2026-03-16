@@ -1,5 +1,6 @@
 const cron = require('node-cron');
 const { flush } = require('./queue');
+const { processDeletions } = require('./autodelete');
 
 function setupCron(client) {
   cron.schedule(
@@ -7,8 +8,9 @@ function setupCron(client) {
     async () => {
       try {
         await flush(client);
+        await processDeletions(client);
       } catch (err) {
-        console.error('[cron] error while flushing queue', err);
+        console.error('[cron] error while flushing or deleting', err);
       }
     },
     {
