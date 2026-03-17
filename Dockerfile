@@ -18,7 +18,6 @@ RUN npm ci --omit=dev
 
 COPY src/ ./src/
 
-VOLUME ["/app/data", "/app/sessions"]
 
 CMD ["node", "src/index.js"]
 
