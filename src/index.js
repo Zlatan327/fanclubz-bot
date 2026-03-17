@@ -70,14 +70,17 @@ const server = http.createServer(async (req, res) => {
         <title>Scan WhatsApp QR Code</title>
         <style>
           body { background-color: #111b21; color: white; text-align: center; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-          img { border: 12px solid white; border-radius: 8px; max-width: 90vw; }
-          p { margin-top: 20px; color: #8696a0; }
+          .qr-container { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); display: inline-block; }
+          img { width: 300px; height: 300px; display: block; }
+          p { margin-top: 25px; color: #8696a0; font-weight: bold; }
         </style>
       </head>
       <body>
         <h1>Scan with WhatsApp</h1>
-        <img src="${qrDataUrl}" alt="QR Code" />
-        <p>Linked Devices > Link a Device</p>
+        <div class="qr-container">
+          <img src="${qrDataUrl}" alt="QR Code" />
+        </div>
+        <p>Go to WhatsApp > Settings > Linked Devices > Link a Device</p>
       </body>
       </html>
     `);
