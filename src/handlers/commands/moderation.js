@@ -1,5 +1,5 @@
 const { db } = require('../../db');
-const { GROUP_ID, getSenderJid } = require('../utils');
+const { getSenderJid } = require('../utils');
 
 async function handle(client, message, command) {
   const mentions = await message.getMentions();
@@ -10,9 +10,9 @@ async function handle(client, message, command) {
 
   const targets = mentions.map((c) => c.id._serialized);
 
-  if (command === '!kick' || command === '!ban') {
+  if (command === '/kick' || command === '/ban') {  // ← updated
     try {
-      await client.removeParticipants(GROUP_ID, targets);
+      await client.removeParticipants(message.from, targets); // ← any group
     } catch (err) {
       console.error('[moderation] failed to remove participants', err);
       await message.reply('Failed to remove one or more members.');
@@ -20,7 +20,7 @@ async function handle(client, message, command) {
     }
   }
 
-  if (command === '!ban') {
+  if (command === '/ban') {
     const stmt = db.prepare(
       'UPDATE members SET is_banned = 1 WHERE id = ?'
     );
@@ -28,7 +28,7 @@ async function handle(client, message, command) {
       stmt.run(t);
     }
     await message.reply('Selected members have been banned.');
-  } else if (command === '!kick') {
+  } else if (command === '/kick') {
     await message.reply('Selected members have been removed.');
   }
 }
@@ -36,4 +36,3 @@ async function handle(client, message, command) {
 module.exports = {
   handle
 };
-
