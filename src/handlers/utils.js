@@ -1,7 +1,5 @@
 const { db } = require('../db');
 
-const GROUP_ID = process.env.GROUP_ID;
-
 function parseAdminIds() {
   const raw = process.env.ADMIN_IDS || '';
   return raw
@@ -13,17 +11,16 @@ function parseAdminIds() {
 const ADMIN_IDS = parseAdminIds();
 
 function isFromTargetGroup(message) {
-  return GROUP_ID && message.from === GROUP_ID;
+  return true; // ← Now works in EVERY group
 }
 
 function getSenderJid(message) {
-  // In groups, author contains the participant; in DMs, from is the user
   return message.author || message.from;
 }
 
 function isAdmin(message) {
   const sender = getSenderJid(message);
-  return isFromTargetGroup(message) && ADMIN_IDS.includes(sender);
+  return ADMIN_IDS.includes(sender);
 }
 
 function normalizeUrl(url) {
@@ -51,7 +48,6 @@ function incrementMessageCount(jid, name) {
 }
 
 module.exports = {
-  GROUP_ID,
   ADMIN_IDS,
   isAdmin,
   isFromTargetGroup,
@@ -59,4 +55,3 @@ module.exports = {
   normalizeUrl,
   incrementMessageCount
 };
-
