@@ -6,6 +6,7 @@ const http = require('http');
 const QRCode = require('qrcode');
 
 let latestQr = null;
+let isReady = false;
 
 const { handleMessage } = require('./handlers/message');
 const { handleGroupJoin } = require('./handlers/groupJoin');
@@ -31,7 +32,8 @@ client.on('qr', (qr) => {
 });
 
 client.on('ready', () => {
-  console.log('Fanclubz WhatsApp bot is ready.');
+  console.log('✅ Fanclubz WhatsApp bot is ready.');
+  isReady = true;
 });
 
 client.on('message', (message) => {
@@ -54,10 +56,36 @@ setupCron(client);
 
 client.initialize();
 
+// ====================== FIXED QR WEB SERVER ======================
 const server = http.createServer(async (req, res) => {
+  if (isReady) {
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    return res.end(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>✅ Bot is Ready</title>
+        <style>
+          body { background-color: #111b21; color: white; text-align: center; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+          h1 { color: #00ff00; }
+        </style>
+      </head>
+      <body>
+        <h1>✅ Fanclubz WhatsApp Bot is Ready!</h1>
+        <p>The bot is connected and running on Railway.</p>
+        <p>Check your Railway logs for full status.</p>
+      </body>
+      </html>
+    `);
+  }
+
   if (!latestQr) {
     res.writeHead(200, { 'Content-Type': 'text/html' });
-    return res.end('<h1>Waiting for QR Code...</h1><p>The bot is initializing or checking session. Please refresh in a few seconds.</p><script>setTimeout(() => location.reload(), 2000)</script>');
+    return res.end(`
+      <h1>⏳ Waiting for QR Code...</h1>
+      <p>The bot is initializing or restoring session. Refresh in 5-10 seconds.</p>
+      <script>setTimeout(() => location.reload(), 3000)</script>
+    `);
   }
 
   try {
@@ -76,11 +104,11 @@ const server = http.createServer(async (req, res) => {
         </style>
       </head>
       <body>
-        <h1>Scan with WhatsApp</h1>
+        <h1>📱 Scan with WhatsApp</h1>
         <div class="qr-container">
           <img src="${qrDataUrl}" alt="QR Code" />
         </div>
-        <p>Go to WhatsApp > Settings > Linked Devices > Link a Device</p>
+        <p>Go to WhatsApp → Settings → Linked Devices → Link a Device</p>
       </body>
       </html>
     `);
@@ -94,5 +122,3 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Web server listening on port ${PORT} to serve QR code`);
 });
-
-
