@@ -1,12 +1,11 @@
 const { db } = require('../db');
-const { GROUP_ID } = require('./utils');
 
 const WELCOME_MSG =
   process.env.WELCOME_MSG ||
-  'Welcome {name} to Fanclubz! Read the rules: !rules • Check active predictions: !predictions • Tell us who invited you: !invited @name';
+  'Welcome {name} to Fanclubz! Read the rules: /rules • Check active predictions: /predictions • Tell us who invited you: /invited @name';
 
 async function handleGroupJoin(client, notification) {
-  if (!GROUP_ID || notification.id.remote !== GROUP_ID) return;
+  const groupId = notification.id.remote; // ← any group
 
   const participantId = notification.recipientIds[0];
   const now = Math.floor(Date.now() / 1000);
@@ -22,7 +21,7 @@ async function handleGroupJoin(client, notification) {
     .get(participantId);
   if (banned && banned.is_banned) {
     try {
-      await client.removeParticipants(GROUP_ID, [participantId]);
+      await client.removeParticipants(groupId, [participantId]);
     } catch (err) {
       console.error('[group_join] failed to auto-kick banned member', err);
     }
@@ -39,10 +38,9 @@ async function handleGroupJoin(client, notification) {
   }
 
   const msg = WELCOME_MSG.replace('{name}', displayName);
-  await client.sendMessage(GROUP_ID, msg);
+  await client.sendMessage(groupId, msg);
 }
 
 module.exports = {
   handleGroupJoin
 };
-
