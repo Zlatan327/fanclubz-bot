@@ -2,7 +2,6 @@ const { enqueue } = require('../queue');
 const { db } = require('../db');
 const { scheduleDeletion } = require('../autodelete');
 const {
-  GROUP_ID,
   isAdmin,
   isFromTargetGroup,
   getSenderJid,
@@ -101,7 +100,7 @@ async function handleLinkModeration(client, message) {
         'UPDATE members SET is_banned = 1 WHERE id = ?'
       ).run(senderJid);
       try {
-        await client.removeParticipants(GROUP_ID, [senderJid]);
+        await client.removeParticipants(message.from, [senderJid]); // ← any group
       } catch (err) {
         console.error('[links] failed to remove participant', err);
       }
@@ -118,7 +117,7 @@ async function routeCommand(client, message, command, args) {
   const senderIsAdmin = isAdmin(message);
 
   if (
-    ['!top', '!myrank', '!kick', '!ban', '!newcontest', '!endcontest', '!setrules', '!inviteleader', '!resetleader', '!endprediction'].includes(
+    ['/top', '/myrank', '/kick', '/ban', '/newcontest', '/endcontest', '/setrules', '/inviteleader', '/resetleader', '/endprediction'].includes(
       command
     ) &&
     !senderIsAdmin
@@ -126,7 +125,6 @@ async function routeCommand(client, message, command, args) {
     return;
   }
 
-  // Auto-delete wrapper Strategy (2 mins = 120s for BOTH):
   const originalReply = message.reply.bind(message);
   message.reply = async (...args) => {
     try {
@@ -140,51 +138,47 @@ async function routeCommand(client, message, command, args) {
     }
   };
 
-  // Schedule user command message for deletion
   scheduleDeletion(message.id._serialized, message.from, 120);
 
   switch (command) {
-    case '!top':
-    case '!myrank':
-    case '!inviteleader':
-    case '!resetleader':
+    case '/top':
+    case '/myrank':
+    case '/inviteleader':
+    case '/resetleader':
       return commands.leaderboard.handle(client, message, command, args);
-    case '!invited':
-    case '!invitelink':
+    case '/invited':
+    case '/invitelink':
       return commands.invites.handle(client, message, command, args);
-    case '!kick':
-    case '!ban':
+    case '/kick':
+    case '/ban':
       return commands.moderation.handle(client, message, command, args);
-    case '!newcontest':
-    case '!endcontest':
-    case '!contests':
+    case '/newcontest':
+    case '/endcontest':
+    case '/contests':
       return commands.contests.handle(client, message, command, args);
-    case '!predictions':
-    case '!endprediction':
+    case '/predictions':
+    case '/endprediction':
       return commands.predictions.handle(client, message, command, args);
-    case '!rules':
-    case '!setrules':
+    case '/rules':
+    case '/setrules':
       return commands.rules.handle(client, message, command, args);
-    case '!faq':
-    case '!help':
-    case '!info':
+    case '/faq':
+    case '/help':
+    case '/info':
       return commands.faq.handle(client, message, command, args);
     default:
   }
 }
 
 async function handleMessage(client, message) {
-  if (!isFromTargetGroup(message)) {
-    return;
-  }
-
+  // Removed single-group check — now works in ANY group
   const senderJid = getSenderJid(message);
   const banned = db
     .prepare('SELECT is_banned FROM members WHERE id = ?')
     .get(senderJid);
   if (banned && banned.is_banned) {
     try {
-      await client.removeParticipants(GROUP_ID, [senderJid]);
+      await client.removeParticipants(message.from, [senderJid]);
     } catch (err) {
       console.error('[message] failed to re-kick banned member', err);
     }
@@ -195,7 +189,7 @@ async function handleMessage(client, message) {
 
   const body = (message.body || '').trim();
 
-  if (body.startsWith('!')) {
+  if (body.startsWith('/')) {   // ← changed to /
     const [cmd, ...rest] = body.split(/\s+/);
     await routeCommand(client, message, cmd.toLowerCase(), rest);
   } else {
@@ -206,4 +200,3 @@ async function handleMessage(client, message) {
 module.exports = {
   handleMessage
 };
-
