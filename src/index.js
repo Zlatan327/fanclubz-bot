@@ -63,11 +63,16 @@ setupCron(client);
 
 client.initialize();
 
-// ====================== FIXED QR WEB SERVER ======================
-const server = http.createServer(async (req, res) => {
+const express = require('express');
+const app = express();
+
+app.get('/health', (req, res) => {
+  res.status(200).send('OK');
+});
+
+app.get('*', async (req, res) => {
   if (isReady) {
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    return res.end(`
+    return res.send(`
       <!DOCTYPE html>
       <html>
       <head>
@@ -87,8 +92,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (!latestQr) {
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    return res.end(`
+    return res.send(`
       <h1>⏳ Waiting for QR Code...</h1>
       <p>The bot is initializing or restoring session. Refresh in 5-10 seconds.</p>
       <script>setTimeout(() => location.reload(), 3000)</script>
@@ -97,8 +101,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     const qrDataUrl = await QRCode.toDataURL(latestQr);
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(`
+    res.send(`
       <!DOCTYPE html>
       <html>
       <head>
@@ -120,12 +123,11 @@ const server = http.createServer(async (req, res) => {
       </html>
     `);
   } catch (err) {
-    res.writeHead(500);
-    res.end('Error generating QR code');
+    res.status(500).send('Error generating QR code');
   }
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Web server listening on port ${PORT} to serve QR code`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Express web server listening on port ${PORT}`);
 });
