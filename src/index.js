@@ -70,7 +70,7 @@ app.get('/health', (req, res) => {
   res.status(200).send('OK');
 });
 
-app.all('*', async (req, res) => {
+app.all(/.*/, async (req, res) => {
   if (isReady) {
     return res.send(`
       <!DOCTYPE html>
